@@ -1,0 +1,3 @@
+# Ignore environment secrets
+__pycache__/
+*.pyc
