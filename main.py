@@ -16,23 +16,24 @@ async def reject_everything_else(update, context):
         await update.callback_query.answer("❌ Akses ditolak", show_alert=True)
 
 def main():
+    WEBHOOK_URL = "https://10.10.10.31.com:7890"
+    PORT = 7890
+
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # 1. Izinkan hanya command /so
+    # Handler utama
     app.add_handler(CommandHandler("so", so_start))
-
-    # 2. Izinkan hanya callback inline keyboard kita (SO|...)
     app.add_handler(CallbackQueryHandler(so_generate, pattern=r"^SO\|"))
-
     app.add_handler(CallbackQueryHandler(cancel_so, pattern=r"^CANCEL_SO$"))
-
-    # 3. TOLAK SEMUA YANG LAIN
     app.add_handler(MessageHandler(filters.ALL, reject_everything_else))
 
-    # 4. Start bot (polling)
-    app.run_polling()
-    # 5. Jalankan webserver supaya tetap hidup di Heroku
-    app.run(host='0.0.0.0', port=7890)
+    # Jalankan dengan webhook
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path="",
+        webhook_url=WEBHOOK_URL,
+    )
 
 if __name__ == "__main__":
     main()
