@@ -11,7 +11,7 @@ from bot_controller import so_start, so_generate, cancel_so, ed_report
 
 async def reject_everything_else(update, context):
     if update.message:
-        await update.message.reply_text("❌ Bot ini hanya menerima perintah /so")
+        await update.message.reply_text("❌ Pilih menu yang tersedia saja.")
     elif update.callback_query:
         await update.callback_query.answer("❌ Akses ditolak", show_alert=True)
 
