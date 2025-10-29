@@ -135,6 +135,12 @@ async def so_generate(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         )
 
+        # update pesan status jadi final
+        await query.edit_message_text(
+            f"✅ Proses selesai.\n"
+            f"{nama_ruangan} ({kode_ruangan}) — file sudah dikirim."
+        )
+
     except Exception as e:
         await query.message.reply_text(f"❌ Terjadi kesalahan: {e}")
 
@@ -158,12 +164,17 @@ async def ed_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # default hari
     threshold_days = 90
 
+    rows = get_obat_ed(threshold_days)
+
     # ngasih status sementara
-    await update.message.reply_text(
-        f"⏳ Mengambil data obat EXP ≤ {threshold_days} hari..."
+    status_msg = await update.message.reply_text(
+        f"⏳ Sedang proses mengambil data obat EXP ≤ {threshold_days} hari..."
     )
 
-    rows = get_obat_ed(threshold_days)
+    # update pesan status jadi final
+    await status_msg.edit_text(
+        f"✅ Laporan EXP siap. Total batch: {len(rows)}."
+    )
 
     if not rows:
         await update.message.reply_text(
@@ -183,8 +194,8 @@ async def ed_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
         document=InputFile(xlsx_data, filename),
         caption=(
             f"📄 Laporan EXP (≤ {threshold_days} hari)\n"
-            f"Total batch: {len(rows)}\n"
-            "Sheet1: OBAT_EXP\n"
-            "Sheet2: INFO"
+            # f"Total batch: {len(rows)}\n"
+            # "Sheet1: OBAT_EXP\n"
+            # "Sheet2: INFO"
         )
     )
