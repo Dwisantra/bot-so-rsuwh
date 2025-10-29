@@ -151,3 +151,46 @@ def get_so_final_rows(cutoff_date, kode_ruangan):
     """
     detail_rows = db_query(q_detail, (so_tanggal, so_id))
     return detail_rows
+
+def get_obat_ed(threshold_days=90):
+    today = datetime.now().date()
+    cutoff_max = today + timedelta(days=threshold_days)
+
+    today_str = today.strftime("%Y-%m-%d")
+    cutoff_str = cutoff_max.strftime("%Y-%m-%d")
+
+    q = """
+    SELECT 
+        ib.ID,
+        ib.NAMA NAMABARANG,
+        s.NAMA NAMASATUAN,
+        py.NAMA NAMAREKANAN,
+        pb.FAKTUR NOFAKTUR,
+        IFNULL(pb.TANGGAL,pb.TANGGAL_PENERIMAAN) TANGGAL_PENERIMAAN,
+        pbd.NO_BATCH,
+        ik.NAMA KATEGORI,
+        pbd.JUMLAH STOK_DITERIMA,
+        pbd.MASA_BERLAKU TGL_EXP,
+        CASE
+            WHEN DATEDIFF(pbd.MASA_BERLAKU, CURDATE()) < 0 THEN 'Expired'
+            WHEN DATEDIFF(pbd.MASA_BERLAKU, CURDATE()) <= 30 THEN 'Akan Expired'
+            ELSE 'Aman'
+        END STATUS_EXP,
+        pbd.HARGA HARGASATUAN,
+        ((pbd.HARGA * pbd.JUMLAH) - pbd.DISKON) TOTAL_HARGA,
+        ib.`STATUS`
+    FROM inventory.penerimaan_barang pb
+         LEFT JOIN inventory.penyedia py ON pb.REKANAN=py.ID
+         LEFT JOIN master.ruangan r ON pb.RUANGAN=r.ID
+      , inventory.penerimaan_barang_detil pbd
+      , inventory.barang ib
+		  LEFT JOIN inventory.barang_ruangan br ON br.BARANG=ib.ID  
+        LEFT JOIN inventory.satuan s ON ib.SATUAN=s.ID
+        LEFT JOIN inventory.kategori ik ON ib.KATEGORI=ik.ID
+    WHERE pb.ID=pbd.PENERIMAAN AND pbd.BARANG=ib.ID AND pbd.STATUS!=0
+	AND pbd.MASA_BERLAKU BETWEEN %s AND %s
+    AND (ik.ID LIKE '101%%' OR ik.ID LIKE '102%%')
+    GROUP BY pbd.NO_BATCH, pb.FAKTUR
+	ORDER BY pbd.MASA_BERLAKU, pb.FAKTUR, pb.NO_SP ASC;
+    """
+    return db_query(q, (today_str, cutoff_str))

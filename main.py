@@ -7,7 +7,7 @@ from telegram.ext import (
     filters,
 )
 from config import TELEGRAM_BOT_TOKEN
-from bot_controller import so_start, so_generate, cancel_so
+from bot_controller import so_start, so_generate, cancel_so, ed_report
 
 async def reject_everything_else(update, context):
     if update.message:
@@ -22,6 +22,11 @@ def main():
     app.add_handler(CommandHandler("so", so_start))
     app.add_handler(CallbackQueryHandler(so_generate, pattern=r"^SO\|"))
     app.add_handler(CallbackQueryHandler(cancel_so, pattern=r"^CANCEL_SO$"))
+
+    app.add_handler(CommandHandler("ed", ed_report))
+    # app.add_handler(CallbackQueryHandler(so_generate, pattern=r"^ED\|"))
+    # app.add_handler(CallbackQueryHandler(cancel_so, pattern=r"^CANCEL_SO$"))
+
     app.add_handler(MessageHandler(filters.ALL, reject_everything_else))
 
     # jalankan via polling, BUKAN webhook

@@ -8,9 +8,10 @@ from telegram import (
 from telegram.ext import (
     ContextTypes,
 )
+from datetime import datetime
 from config import ALLOWED_CHAT_IDS
-from services import get_ruangan_list, get_master_rows, get_stok_rows_pre, get_so_final_rows, get_last_so_date
-from helpers import merge_stok_into_master, build_xlsx
+from services import get_ruangan_list, get_master_rows, get_stok_rows_pre, get_so_final_rows, get_last_so_date, get_obat_ed
+from helpers import merge_stok_into_master, build_xlsx_so, build_ed_xlsx
 
 def is_private_chat(update):
     """Cek apakah chat ini private (bukan grup / channel)."""
@@ -116,7 +117,7 @@ async def so_generate(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Build workbook
-        xlsx_data = build_xlsx(merged_rows, stok_pre_rows, stok_post_rows)
+        xlsx_data = build_xlsx_so(merged_rows, stok_pre_rows, stok_post_rows)
 
         # Nama file
         filename = f"SO_{nama_ruangan}_{kode_ruangan}_{cutoff_date}.xlsx"
@@ -129,9 +130,7 @@ async def so_generate(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "✅ SO siap.\n"
                 f"Ruangan: {nama_ruangan} ({kode_ruangan})\n"
                 f"Cutoff <= {cutoff_date} 23:59:59\n\n"
-                "- STOK_AWAL_SO  = stok sistem sebelum opname\n"
-                "- STOK_POST_SO  = stok setelah SO\n"
-                "- Sheet STOK_PRE_SO = cutoff mentah pre SO"
+                "- Sheet STOK_PRE_SO = cutoff raw pre SO\n"
                 "- Sheet STOK_POST_SO = data final setelah SO"
             )
         )
@@ -144,3 +143,48 @@ async def cancel_so(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer("Dibatalkan ✅", show_alert=False)
     await query.edit_message_text("❌ Proses dibatalkan.")
+
+async def ed_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_private_chat(update):
+        if update.message:
+            await update.message.reply_text("❌ Hanya boleh via chat pribadi.")
+        return
+
+    chat_id = update.message.chat_id
+    if ALLOWED_CHAT_IDS and chat_id not in ALLOWED_CHAT_IDS:
+        await update.message.reply_text("Unauthorized.")
+        return
+
+    # default hari
+    threshold_days = 90
+
+    # ngasih status sementara
+    await update.message.reply_text(
+        f"⏳ Mengambil data obat EXP ≤ {threshold_days} hari..."
+    )
+
+    rows = get_obat_ed(threshold_days)
+
+    if not rows:
+        await update.message.reply_text(
+            f"✅ Tidak ada obat yang EXP dalam {threshold_days} hari ke depan."
+        )
+        return
+
+    # bangun Excel
+    xlsx_data = build_ed_xlsx(rows, threshold_days)
+
+    # nama file
+    filename = f"EXP_{threshold_days}hari_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    xlsx_data.name = filename
+
+    # kirim file ke user
+    await update.message.reply_document(
+        document=InputFile(xlsx_data, filename),
+        caption=(
+            f"📄 Laporan EXP (≤ {threshold_days} hari)\n"
+            f"Total batch: {len(rows)}\n"
+            "Sheet1: OBAT_EXP\n"
+            "Sheet2: INFO"
+        )
+    )

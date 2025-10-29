@@ -96,12 +96,7 @@ def merge_stok_into_master(master_rows, stok_pre_rows, stok_post_rows):
 
     return merged
 
-def build_xlsx(merged_rows, stok_pre_rows, stok_post_rows):
-    """
-    Buat workbook Excel:
-    - MASTER_DATA (gabungan stok awal, hasil SO final, sesudah SO, selisih)
-    - STOK_PRA_SO (log snapshot pra SO untuk audit)
-    """
+def build_xlsx_so(merged_rows, stok_pre_rows, stok_post_rows):
     wb = Workbook()
 
     # MASTER_DATA
@@ -216,6 +211,68 @@ def build_xlsx(merged_rows, stok_pre_rows, stok_post_rows):
             z["RUANGAN"],
             fmt_date(z["TANGGAL_POST_SO"]),
         ])
+
+    bio = io.BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    return bio
+
+def build_ed_xlsx(rows, threshold_days):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "OBAT_EXPIRED_DATE"
+
+    headers = [
+        "ID_BARANG",
+        "NAMA",
+        "NO_FAKTUR",
+        "NO_BATCH",
+        "TGL_EXP",
+        "STATUS_EXP",
+        "STOK_DITERIMA",        
+        "KATEGORI",
+        "SATUAN",
+        "HARGA_SATUAN",
+        "TOTAL_HARGA",
+        "REKANAN",
+        "TGL_PENERIMAAN",
+        "STATUS_BARANG"
+    ]
+    ws.append(headers)
+
+    def to_datestr(val):
+        if isinstance(val, datetime):
+            return val.strftime("%Y-%m-%d %H:%M:%S")
+        return "" if val is None else str(val)
+
+    for r in rows:
+        ws.append([
+            r["ID"],
+            r["NAMABARANG"],       
+            r["NOFAKTUR"],        
+            r["NO_BATCH"],            
+            to_datestr(r["TGL_EXP"]),
+            r["STATUS_EXP"],
+            r["STOK_DITERIMA"],
+            r["KATEGORI"],
+            r["NAMASATUAN"],
+            r["HARGASATUAN"],
+            r["TOTAL_HARGA"],
+            r["NAMAREKANAN"],
+            to_datestr(r["TANGGAL_PENERIMAAN"]),
+            r["STATUS"],
+        ])
+
+    # Info summary kecil di sheet kedua
+    ws2 = wb.create_sheet("INFO")
+    ws2["A1"] = "Laporan EXP"
+    ws2["B1"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    ws2["A2"] = "Hari EXP (hari) setelah " + datetime.now().strftime("%Y-%m-%d")
+    ws2["B2"] = threshold_days
+
+    ws2["A3"] = "Total item"
+    ws2["B3"] = len(rows)
 
     bio = io.BytesIO()
     wb.save(bio)
