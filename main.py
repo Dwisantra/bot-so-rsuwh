@@ -7,7 +7,7 @@ from telegram.ext import (
     filters,
 )
 from config import TELEGRAM_BOT_TOKEN
-from bot_controller import so_start, so_generate, cancel_so, ed_report
+from bot_controller import so_start, so_generate, cancel_so, ed_report, so_all
 
 async def reject_everything_else(update, context):
     if update.message:
@@ -20,6 +20,7 @@ def main():
 
     # handler utama
     app.add_handler(CommandHandler("so", so_start))
+    app.add_handler(CommandHandler("soall", so_all))
     app.add_handler(CallbackQueryHandler(so_generate, pattern=r"^SO\|"))
     app.add_handler(CallbackQueryHandler(cancel_so, pattern=r"^CANCEL_SO$"))
 

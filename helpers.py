@@ -3,6 +3,24 @@ from decimal import Decimal
 from datetime import datetime
 from openpyxl import Workbook
 
+def _sanitize_sheet_title(raw_title):
+    """Ensure Excel sheet title is valid and <= 31 chars."""
+    if not raw_title:
+        return "Sheet"
+
+    title = str(raw_title)
+    # Excel sheet title max length 31 and cannot contain certain chars
+    invalid_chars = set('[]:*?/\\')
+    title = ''.join('-' if c in invalid_chars else c for c in title)
+    title = title.strip()
+    if not title:
+        title = "Sheet"
+
+    if len(title) > 31:
+        title = title[:31]
+
+    return title
+
 def clean_number(raw_val):
     """
     - None -> ""
@@ -273,6 +291,76 @@ def build_ed_xlsx(rows, threshold_days):
 
     ws2["A3"] = "Total item"
     ws2["B3"] = len(rows)
+
+    bio = io.BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    return bio
+
+def build_xlsx_so_all_ruangan(ruangan_datasets):
+    wb = Workbook()
+    headers = [
+        "ID_BARANG",
+        "NAMA",
+        "SATUAN",
+        "KATEGORI",
+        "HARGA_JUAL",
+        "STOK_PRE_SO",
+        "STOK_POST_SO",
+        "SELISIH_PRE_VS_POST",
+        "ID_BARANG_RUANGAN",
+        "KODE_RUANGAN",
+        "RUANGAN",
+        "STATUS_BARANG",
+        "STATUS_BARANG_RUANGAN",
+        "TANGGAL_CUTOFF",
+        "TANGGAL_POST_SO",
+    ]
+
+    def _unique_sheet_name(wb_obj, proposed_name):
+        base_name = _sanitize_sheet_title(proposed_name)
+        if base_name not in wb_obj.sheetnames:
+            return base_name
+
+        counter = 1
+        while True:
+            suffix = f"_{counter}"
+            max_base_len = 31 - len(suffix)
+            truncated = base_name[:max_base_len]
+            candidate = f"{truncated}{suffix}"
+            candidate = _sanitize_sheet_title(candidate)
+            if candidate not in wb_obj.sheetnames:
+                return candidate
+            counter += 1
+
+    for idx, data in enumerate(ruangan_datasets):
+        sheet_name = _unique_sheet_name(wb, data.get("sheet_name"))
+        if idx == 0:
+            ws = wb.active
+            ws.title = sheet_name
+        else:
+            ws = wb.create_sheet(sheet_name)
+
+        ws.append(headers)
+
+        for row in data.get("rows", []):
+            ws.append([
+                row["ID_BARANG"],
+                row["NAMA"],
+                row["SATUAN"],
+                row["KATEGORI"],
+                clean_number(row["HARGA_JUAL"]),
+                clean_number(row["STOK_PRE_SO"]),
+                clean_number(row["STOK_POST_SO"]),
+                clean_number(row["SELISIH_PRE_VS_POST"]),
+                row["ID_BARANG_RUANGAN"],
+                row["KODE_RUANGAN"],
+                row["RUANGAN"],
+                row["STATUS_BARANG"],
+                row["STATUS_BARANG_RUANGAN"],
+                fmt_date(row["TANGGAL_CUTOFF"]),
+                fmt_date(row["TANGGAL_POST_SO"]),
+            ])
 
     bio = io.BytesIO()
     wb.save(bio)

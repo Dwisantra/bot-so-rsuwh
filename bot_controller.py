@@ -11,7 +11,7 @@ from telegram.ext import (
 from datetime import datetime
 from config import ALLOWED_CHAT_IDS
 from services import get_ruangan_list, get_master_rows, get_stok_rows_pre, get_so_final_rows, get_last_so_date, get_obat_ed
-from helpers import merge_stok_into_master, build_xlsx_so, build_ed_xlsx
+from helpers import merge_stok_into_master, build_xlsx_so, build_ed_xlsx, build_xlsx_so_all_ruangan
 
 def is_private_chat(update):
     """Cek apakah chat ini private (bukan grup / channel)."""
@@ -199,3 +199,68 @@ async def ed_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # "Sheet2: INFO"
         )
     )
+
+async def so_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_private_chat(update):
+        if update.message:
+            await update.message.reply_text("❌ Hanya boleh via chat pribadi.")
+        return
+
+    chat_id = update.message.chat_id
+    if ALLOWED_CHAT_IDS and chat_id not in ALLOWED_CHAT_IDS:
+        await update.message.reply_text("Unauthorized.")
+        return
+
+    cutoff_date = get_last_so_date()
+    if not cutoff_date:
+        await update.message.reply_text("Tidak ada data SO.")
+        return
+
+    ruangan_list = get_ruangan_list()
+    if not ruangan_list:
+        await update.message.reply_text("Tidak ada ruangan ditemukan.")
+        return
+
+    status_msg = await update.message.reply_text(
+        "⏳ Sedang proses SO semua ruangan..."
+    )
+
+    try:
+        datasets = []
+        for r in ruangan_list:
+            kode = r["ID"]
+            desk = r["DESKRIPSI"]
+
+            master_rows = get_master_rows(kode)
+            stok_pre_rows = get_stok_rows_pre(cutoff_date, kode)
+            stok_post_rows = get_so_final_rows(cutoff_date, kode)
+
+            merged_rows = merge_stok_into_master(
+                master_rows,
+                stok_pre_rows,
+                stok_post_rows,
+            )
+
+            datasets.append({
+                "sheet_name": f"{desk} ({kode})",
+                "rows": merged_rows,
+            })
+
+        xlsx_data = build_xlsx_so_all_ruangan(datasets)
+        filename = f"SO_ALL_RUANGAN_{cutoff_date}.xlsx"
+        xlsx_data.name = filename
+
+        await update.message.reply_document(
+            document=InputFile(xlsx_data, filename),
+            caption=(
+                "✅ SO semua ruangan siap.\n"
+                f"Tanggal SO: {cutoff_date}\n"
+                "Sheet: MASTER_DATA per ruangan"
+            )
+        )
+
+        await status_msg.edit_text("✅ File SO semua ruangan sudah dikirim.")
+
+    except Exception as e:
+        await status_msg.edit_text("❌ Terjadi kesalahan saat memproses SO semua ruangan.")
+        await update.message.reply_text(f"❌ Detail error: {e}")
